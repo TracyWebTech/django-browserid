@@ -12,7 +12,7 @@ To fix this, include https://persona.org in your script-src and frame-src
 directive. If you're using the `django-csp`_ library, the following settings
 will work::
 
-    CSP_SCRIPT_SRC = ("'self'", https://login.persona.org')
+    CSP_SCRIPT_SRC = ("'self'", 'https://login.persona.org')
     CSP_FRAME_SRC = ("'self'", 'https://login.persona.org')
 
 .. _Content Security Policy: https://developer.mozilla.org/en/Security/CSP
@@ -58,3 +58,28 @@ in-memory cache with the following in your local settings file::
 
 .. _playdoh: https://github.com/mozilla/playdoh
 .. _django-session-csrf: https://github.com/mozilla/django-session-csrf
+
+Your website uses HTTPS but django-browserid thinks it's http
+-------------------------------------------------------------
+
+This will happen if you are using django-browserid behind a load balancer 
+that is terminating your SSL connections, like nginx.
+The ``request.is_secure()`` method will return false,
+unless you tell Django that it is being served over https.
+You will need to configure Django's `SECURE_PROXY_SSL_HEADER`_ 
+with a value provided by your load balancer.
+An example configuration might look like this::
+
+    # settings.py
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTOCOL', 'https')
+    
+    # nginx
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+	    proxy_set_header X-Forwarded-Protocol https; # Tell django we're using https
+    }
+    
+.. _SECURE_PROXY_SSL_HEADER: https://docs.djangoproject.com/en/dev/ref/settings/#secure-proxy-ssl-header
