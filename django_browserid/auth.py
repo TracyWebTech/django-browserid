@@ -126,6 +126,10 @@ class BrowserIDBackend(object):
         if not self.is_valid_email(email):
             return None
 
+        session = getattr(request, 'session', None)
+        if session:
+            session['browserid_email'] = email
+
         # In the rare case that two user accounts have the same email address,
         # log and bail. Randomly selecting one seems really wrong.
         users = self.filter_users_by_email(email=email)

@@ -43,7 +43,7 @@ def browserid_info(request):
     backend = auth.load_backend(backend_name) if backend_name else None
 
     if isinstance(backend, BrowserIDBackend):
-        email = getattr(request.user, 'email', '')
+        email = request.session.get('browserid_email', '')
     else:
         email = ''
 
