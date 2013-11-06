@@ -1,8 +1,10 @@
-from django.contrib.auth import authenticate
+from django.contrib.auth import authenticate, login
 from django.contrib.auth.models import AnonymousUser, User
 from django.test import TestCase
 from django.test.client import RequestFactory
+from django.test.utils import override_settings
 from django.utils.functional import lazy
+from django.contrib.sessions.backends.cache import SessionStore
 
 from mock import patch
 from pyquery import PyQuery as pq
@@ -10,7 +12,7 @@ from pyquery import PyQuery as pq
 from django_browserid.helpers import (browserid_button, browserid_info,
                                       browserid_js, browserid_login,
                                       browserid_css, browserid_logout)
-from django_browserid.tests import mock_browserid, patch_settings
+from django_browserid.tests import mock_browserid
 
 
 @patch('django_browserid.helpers.FORM_JAVASCRIPT',
@@ -29,6 +31,7 @@ class BrowserIDJSTests(TestCase):
         self.assertTrue('src="static/test1.js"' in output)
         self.assertTrue('src="static/test2.js"' in output)
         self.assertTrue('src="https://example.com/test3.js"' not in output)
+
 
 @patch('django_browserid.helpers.FORM_CSS',
        ('test1.css', 'test2.css'))
@@ -93,6 +96,8 @@ class BrowserIDInfoTests(TestCase):
     def test_defaults(self):
         request = self.factory.get('/')
         request.user = AnonymousUser()
+        request.session = SessionStore()
+
         info = browserid_info(request)
         d = pq(info)
 
@@ -103,14 +108,18 @@ class BrowserIDInfoTests(TestCase):
         form = d('#browserid-form')
         self.assertEqual(form.attr('action'), '/browserid/login/')
 
-    @patch_settings(BROWSERID_REQUEST_ARGS={'siteName': 'asdf'})
+    @override_settings(BROWSERID_REQUEST_ARGS={'siteName': 'asdf'})
     def test_custom_values(self):
         request = self.factory.get('/')
 
         User.objects.create_user('asdf', 'a@example.com')
         with mock_browserid('a@example.com'):
             user = authenticate(assertion='asdf', audience='1234')
-            request.user = user
+
+        request.user = user
+        request.session = SessionStore()
+
+        login(request, user)
 
         info = browserid_info(request)
         d = pq(info)
@@ -133,8 +142,12 @@ class BrowserIDInfoTests(TestCase):
         User.objects.create_user('asdf', 'a@example.com', '1234')
         with mock_browserid(None):
             user = authenticate(username='asdf', password='1234')
-            self.assertTrue(user.is_authenticated())
-            request.user = user
+
+        self.assertTrue(user.is_authenticated())
+        request.user = user
+        request.session = SessionStore()
+
+        login(request, user)
 
         info = browserid_info(request)
         d = pq(info)
@@ -142,11 +155,13 @@ class BrowserIDInfoTests(TestCase):
         info_div = d('#browserid-info')
         self.assertEqual(info_div.attr('data-user-email'), '')
 
-    @patch_settings(BROWSERID_REQUEST_ARGS=lazy_request_args())
+    @override_settings(BROWSERID_REQUEST_ARGS=lazy_request_args())
     def test_lazy_request_args(self):
         # Ensure that request_args can be a lazy-evaluated dictionary.
         request = self.factory.get('/')
         request.user = AnonymousUser()
+        request.session = SessionStore()
+
         info = browserid_info(request)
         d = pq(info)
 
